@@ -28,6 +28,7 @@
             margin: 0 auto;
             position: relative;
             z-index: 1;
+            display: none; /* Скрыт до авторизации */
         }
 
         .header {
@@ -123,6 +124,62 @@
             }
         }
 
+        /* Стили для модального окна */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: #0d1a26;
+            padding: 20px;
+            border: 2px solid #00ff00;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+        }
+
+        .modal-content h2 {
+            margin-bottom: 15px;
+        }
+
+        .modal-content input {
+            background: #000;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            padding: 10px;
+            width: 100%;
+            margin-bottom: 10px;
+            font-family: 'Source Code Pro', monospace;
+        }
+
+        .modal-content button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-family: 'Source Code Pro', monospace;
+            transition: box-shadow 0.3s ease;
+        }
+
+        .modal-content button:hover {
+            box-shadow: 0 0 10px #00ff00;
+        }
+
+        .modal-content p.error {
+            color: #ff3333;
+            margin-top: 10px;
+        }
+
         @media (max-width: 600px) {
             .header h1 {
                 font-size: 1.6rem;
@@ -135,12 +192,24 @@
             p {
                 font-size: 0.85rem;
             }
+
+            .modal-content {
+                width: 90%;
+            }
         }
     </style>
 </head>
 <body>
     <canvas id="matrix"></canvas>
-    <div class="container">
+    <div class="modal" id="keyModal">
+        <div class="modal-content">
+            <h2>Введите ключ доступа</h2>
+            <input type="text" id="keyInput" placeholder="Ключ">
+            <button onclick="checkKey()">Подтвердить</button>
+            <p class="error" id="errorMsg" style="display: none;"></p>
+        </div>
+    </div>
+    <div class="container" id="mainContent">
         <div class="header">
             <h1 class="glitch">XHelp</h1>
             <button class="theme-toggle" onclick="toggleTheme()">🌐</button>
@@ -150,6 +219,7 @@
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fingerprintjs2/2.1.4/fingerprint2.min.js"></script>
     <script>
         // Matrix Rain Effect
         const canvas = document.getElementById('matrix');
@@ -179,10 +249,9 @@
         }
         setInterval(draw, 33);
 
-        // Theme Toggle (simplified for Matrix style)
+        // Theme Toggle
         const themeToggle = document.querySelector('.theme-toggle');
         function toggleTheme() {
-            // Matrix style doesn't need light theme, but keeping toggle for future use
             themeToggle.textContent = themeToggle.textContent === '🌐' ? '💾' : '🌐';
         }
 
@@ -200,6 +269,82 @@
         window.addEventListener('resize', () => {
             canvas.height = window.innerHeight;
             canvas.width = window.innerWidth;
+        });
+
+        // Key Check Logic
+        const correctKey = 'Tr0ub4dor&3';
+        const modal = document.getElementById('keyModal');
+        const mainContent = document.getElementById('mainContent');
+        const errorMsg = document.getElementById('errorMsg');
+
+        function checkKey() {
+            const inputKey = document.getElementById('keyInput').value;
+            if (inputKey === correctKey) {
+                // Получение IP и отпечатка
+                fetch('https://api.ipify.org?format=json')
+                    .then(response => response.json())
+                    .then(data => {
+                        const userIP = data.ip;
+                        new Fingerprint2().get(function(fingerprint) {
+                            // Сохранение данных в localStorage
+                            localStorage.setItem('authKey', correctKey);
+                            localStorage.setItem('userIP', userIP);
+                            localStorage.setItem('fingerprint', fingerprint);
+                            // Показ контента
+                            modal.style.display = 'none';
+                            mainContent.style.display = 'block';
+                        });
+                    })
+                    .catch(() => {
+                        errorMsg.textContent = 'Ошибка получения IP. Попробуйте снова.';
+                        errorMsg.style.display = 'block';
+                    });
+            } else {
+                errorMsg.textContent = 'Неверный ключ!';
+                errorMsg.style.display = 'block';
+            }
+        }
+
+        // Проверка авторизации при загрузке
+        function checkAuth() {
+            const savedKey = localStorage.getItem('authKey');
+            const savedIP = localStorage.getItem('userIP');
+            const savedFingerprint = localStorage.getItem('fingerprint');
+
+            if (savedKey === correctKey) {
+                // Проверка IP
+                fetch('https://api.ipify.org?format=json')
+                    .then(response => response.json())
+                    .then(data => {
+                        const currentIP = data.ip;
+                        // Проверка отпечатка
+                        new Fingerprint2().get(function(fingerprint) {
+                            if (currentIP === savedIP && fingerprint === savedFingerprint) {
+                                // Доступ разрешен
+                                modal.style.display = 'none';
+                                mainContent.style.display = 'block';
+                            } else {
+                                // Показ модального окна
+                                modal.style.display = 'flex';
+                            }
+                        });
+                    })
+                    .catch(() => {
+                        modal.style.display = 'flex';
+                    });
+            } else {
+                modal.style.display = 'flex';
+            }
+        }
+
+        // Запуск проверки при загрузке
+        checkAuth();
+
+        // Обработка Enter для ввода ключа
+        document.getElementById('keyInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                checkKey();
+            }
         });
     </script>
 </body>
